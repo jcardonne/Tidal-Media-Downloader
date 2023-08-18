@@ -10,6 +10,8 @@
 '''
 import aigpy
 import logging
+import eyed3
+import os
 
 from tidal_dl.paths import *
 from tidal_dl.printf import *
@@ -74,12 +76,35 @@ def __setMetaData__(track: Track, album: Album, filepath, contributors, lyrics):
     obj.save(coverpath)
 
 
+def embed_cover_to_audio(audio_file_path, cover_file_path):
+    """
+    Embed cover art to an audio file using eyed3.
+    """
+    audiofile = eyed3.load(audio_file_path)
+    if audiofile.tag is None:
+        audiofile.initTag()
+
+    with open(cover_file_path, "rb") as cover_art:
+        audiofile.tag.images.set(3, cover_art.read(), "image/jpeg")  # 3 denotes "front cover"
+        
+    audiofile.tag.save()
+
 def downloadCover(album):
     if album is None:
         return
-    path = getAlbumPath(album) + '/cover.jpg'
+
+    album_path = getAlbumPath(album)
+    cover_file_path = os.path.join(album_path, 'cover.jpg')
+
+    # Download the cover as before
     url = TIDAL_API.getCoverUrl(album.cover, "1280", "1280")
-    aigpy.net.downloadFile(url, path)
+    aigpy.net.downloadFile(url, cover_file_path)
+
+    # Embed the downloaded cover to all audio files in the album directory
+    for audio_file in os.listdir(album_path):
+        if audio_file.endswith(('.mp3', '.flac')):
+            embed_cover_to_audio(os.path.join(album_path, audio_file), cover_file_path)
+
 
 
 def downloadAlbumInfo(album, tracks):
